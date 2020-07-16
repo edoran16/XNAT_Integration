@@ -1,0 +1,122 @@
+{
+  "name": "snr_measurement",
+  "label": "snr_measurement",
+  "description": "Runs snr_measurement",
+  "version": "1.5.1",
+  "schema-version": "1.0",
+  "info-url": "https://github.com/edoran/DockerTest",
+  "image": "docker.io/edoran16/snr_measurement:latest",
+  "type": "docker",
+  "command-line": "python SNR_measurement.py -o /output /input --niftidir /nifti",
+  "mounts": [
+    {
+      "name": "dicom-in",
+      "writable": false,
+      "path": "/input"
+    },
+    {
+      "name": "nifti-out",
+      "writable": true,
+      "path": "/output"
+    }
+  ],
+  "environment-variables": {},
+  "ports": {},
+  "inputs": [
+    {
+      "name": "bids",
+      "description": "Create BIDS metadata file",
+      "type": "boolean",
+      "matcher": null,
+      "default-value": "false",
+      "required": false,
+      "replacement-key": "[BIDS]",
+      "sensitive": null,
+      "command-line-flag": "-b",
+      "command-line-separator": null,
+      "true-value": "y",
+      "false-value": "n"
+    },
+    {
+      "name": "other-options",
+      "description": "Other command-line flags to pass to dicom_wiki_xnat",
+      "type": "string",
+      "matcher": null,
+      "default-value": null,
+      "required": false,
+      "replacement-key": "[OTHER_OPTIONS]",
+      "sensitive": null,
+      "command-line-flag": null,
+      "command-line-separator": null,
+      "true-value": null,
+      "false-value": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "nifti",
+      "description": "The nifti files",
+      "required": true,
+      "mount": "nifti-out",
+      "path": null,
+      "glob": null
+    }
+  ],
+  "xnat": [
+    {
+      "name": "snr_measurement-scan",
+      "label": "snr_measurement_test",
+      "description": "Run snr_measurement on a Scan",
+      "contexts": [
+        "xnat:imageScanData"
+      ],
+      "external-inputs": [
+        {
+          "name": "scan",
+          "description": "Input scan",
+          "type": "Scan",
+          "matcher": "'DICOM' in @.resources[*].label",
+          "default-value": null,
+          "required": true,
+          "replacement-key": null,
+          "sensitive": null,
+          "provides-value-for-command-input": null,
+          "provides-files-for-command-mount": null,
+          "via-setup-command": null,
+          "user-settable": null,
+          "load-children": true
+        }
+      ],
+      "derived-inputs": [
+        {
+          "name": "scan-dicoms",
+          "description": "The dicom resource on the scan",
+          "type": "Resource",
+          "matcher": "@.label == 'DICOM'",
+          "default-value": null,
+          "required": true,
+          "replacement-key": null,
+          "sensitive": null,
+          "provides-value-for-command-input": null,
+          "provides-files-for-command-mount": "dicom-in",
+          "user-settable": null,
+          "load-children": true,
+          "derived-from-wrapper-input": "scan",
+          "derived-from-xnat-object-property": null,
+          "via-setup-command": null
+        }
+      ],
+      "output-handlers": [
+        {
+          "name": "nifti-resource",
+          "accepts-command-output": "nifti",
+          "via-wrapup-command": null,
+          "as-a-child-of": "scan",
+          "type": "Resource",
+          "label": "RESULTS",
+          "format": null
+        }
+      ]
+    }
+  ]
+}
