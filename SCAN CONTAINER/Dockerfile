@@ -11,9 +11,10 @@ RUN apt-get update \
         python3-opencv\
         python3-scipy\
         python3-matplotlib\
-        python3-skimage
+        python3-skimage\
+        python3-pandas
 
-RUN pip3 install numpy pydicom opencv-python scikit-image
+RUN pip3 install numpy pydicom opencv-python scikit-image pandas
 
 CMD [ "python", "./SNR_measurement.py" ]
 

@@ -4,12 +4,13 @@ from glob import glob
 import pydicom
 import numpy as np
 import cv2
+
 # for snr_analysis
-#from pylab import *
 from skimage import filters
 from skimage.morphology import convex_hull_image, opening
 from skimage import exposure as ex
 from skimage.measure import label, regionprops
+import pandas as pd
 
 
 def main(argv):
@@ -110,7 +111,34 @@ def snr_analysis(dcmfile, imdata, img, outpath, cT, cS, cC):
     NSNR, BWcorr, PixelCorr, TimeCorr, TotalCorr = calc_NSNR(pixel_dims, slice_thickness, No_PEsteps, TRep, no_averages,
                                                              SNR_background, Qfactor=Qfact)
 
-    # TODO: insert pandas dataframe export to html file here.
+    # RESULTS TO EXPORT
+    auto_data = {'Signal ROI': [1, 2, 3, 4, 5], 'Signal Mean': all_signals,
+                 'Background ROI': [1, 2, 3, 4, 5], 'Noise SD': all_noise}
+
+    auto_data2 = {'Mean Signal': mean_signal, 'Mean Noise': b_noise, 'SNR': SNR_background,
+                  'Normalised SNR': NSNR}
+
+    auto_df = pd.DataFrame(auto_data, columns=['Signal ROI', 'Signal Mean', 'Background ROI', 'Noise SD'])
+    print(auto_df)  # results from each individual ROI
+
+    auto_df2 = pd.Series(auto_data2)
+    auto_df2.to_frame()
+    print(auto_df2)  # final summary results
+
+    auto_constants_data = {'Bandwidth': 38.4, 'Nominal Bandwidth': 30, 'BW Correction': BWcorr,
+                           'Pixel Dimensions (mm)': pixel_dims, 'Slice width (mm)': slice_thickness,
+                           'Voxel Correction': PixelCorr, 'Phase Encoding Steps': No_PEsteps, 'TR': TRep, 'NSA': no_averages,
+                           'Scan Time Correction': TimeCorr, 'Q Normalisation': Qfact,
+                           'Total Correction Factor': TotalCorr}
+    auto_constants_df = pd.Series(auto_constants_data)
+    auto_constants_df.to_frame()
+    print(auto_constants_df)  # constants for normalised SNR calculation
+
+    results_df = auto_df.append(auto_df2, ignore_index=True)
+    results_df2 = results_df.append(auto_constants_df, ignore_index=True)
+
+    results_df2.to_html(outpath + 'snr_results.html')
+    ##########################################
 
 
 def snr_meta(dicomfile):
