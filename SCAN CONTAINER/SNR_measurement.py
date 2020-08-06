@@ -5,12 +5,16 @@ import pydicom
 import numpy as np
 import cv2
 
+# function script
+import measure_funcs.py as mf
+
 # for snr_analysis
 from skimage import filters
 from skimage.morphology import convex_hull_image, opening
 from skimage import exposure as ex
 from skimage.measure import label, regionprops
 import pandas as pd
+import re
 
 
 def main(argv):
@@ -49,15 +53,12 @@ def main(argv):
     print('dcm =', dcm)
 
     fulldicomfile = pydicom.dcmread(dcm)
-
     print('Scan DICOM file read in successfully.')
 
     imdata = fulldicomfile.pixel_array  # raw image data
-
     print('Pixel data obtained from DICOM file successfully.')
 
     img = ((imdata / np.max(imdata)) * 255).astype('uint8')  # grayscale image
-
     print('Pixel data converted to greyscale successfully.')
 
     splitdcm = dcm.split(os.path.sep)
@@ -65,13 +66,48 @@ def main(argv):
     outputpath = output_dir + os.path.sep
 
     cv2.imwrite(pngvar + '.png', img)  # output png with time in string so that it is more easily identifiable
-
     print('Greyscale image saved as png successfully.')
 
-    # TODO: determine this from the DICOM somehow.
-    caseT = True  # transverse
-    caseS = False  # sagittal
-    caseC = False  # coronal
+    # TODO: determine this from the DICOM metadata.
+    sd, pn = dicom_geo(fulldicomfile)
+    print('Series description = ', sd)
+    print('Protocol name = ', pn)
+
+    # Only run this analysis if SNR is in the scan name
+    x = re.search('SNR', sd)
+    if x:
+        y = 1
+    try:
+        print(y)
+        print('This scan WAS acquired for the SNR test.')
+    except:
+        print('This scan WAS NOT acquired for the SNR test.')
+        exit(1)  # exit code
+    ########################
+
+    matchob_tra = re.search('TRA', sd)
+    if matchob_tra:
+        caseT = True  # transverse
+        caseS = False  # sagittal
+        caseC = False  # coronal
+        print('Scan geometry = Transverse')
+
+    matchob_sag = re.search('SAG', sd)
+    if matchob_sag:
+        caseT = False  # transverse
+        caseS = True  # sagittal
+        caseC = False  # coronal
+        print('Scan geometry = Sagittal')
+
+    matchob_cor = re.search('COR', sd)
+    if matchob_cor:
+        caseT = False  # transverse
+        caseS = False  # sagittal
+        caseC = True  # coronal
+        print('Scan geometry = Coronal')
+
+    test_output = mf.testing_xtra_scripts(6)  # TODO: remove this. just proof of concept for adding scripts to Dockerfile
+    print(test_output)
 
     snr_analysis(fulldicomfile, imdata, img, outputpath, caseT, caseS, caseC)
 
@@ -112,32 +148,42 @@ def snr_analysis(dcmfile, imdata, img, outpath, cT, cS, cC):
                                                              SNR_background, Qfactor=Qfact)
 
     # RESULTS TO EXPORT
-    auto_data = {'Signal ROI': [1, 2, 3, 4, 5], 'Signal Mean': all_signals,
-                 'Background ROI': [1, 2, 3, 4, 5], 'Noise SD': all_noise}
+    print('__._AUTOMATED RESULTS_.__')
+    # create Pandas data frame with auto results
+    auto_data = {'Signal ROI': [1, 2, 3, 4, 5], 'Signal Mean': np.round(all_signals, 2),
+                 'Background ROI': [1, 2, 3, 4, 5], 'Noise SD': np.round(all_noise, 2)}
 
-    auto_data2 = {'Mean Signal': mean_signal, 'Mean Noise': b_noise, 'SNR': SNR_background,
-                  'Normalised SNR': NSNR}
+    auto_data2 = {'Mean Signal': np.round(mean_signal, 2), 'Mean Noise': np.round(b_noise, 2),
+                  'SNR': np.round(SNR_background, 2),
+                  'Normalised SNR': np.round(NSNR, 2)}
 
     auto_df = pd.DataFrame(auto_data, columns=['Signal ROI', 'Signal Mean', 'Background ROI', 'Noise SD'])
-    print(auto_df)  # results from each individual ROI
-
     auto_df2 = pd.Series(auto_data2)
-    auto_df2.to_frame()
-    print(auto_df2)  # final summary results
+    auto_df2 = auto_df2.to_frame()
 
-    auto_constants_data = {'Bandwidth': 38.4, 'Nominal Bandwidth': 30, 'BW Correction': BWcorr,
-                           'Pixel Dimensions (mm)': pixel_dims, 'Slice width (mm)': slice_thickness,
-                           'Voxel Correction': PixelCorr, 'Phase Encoding Steps': No_PEsteps, 'TR': TRep, 'NSA': no_averages,
-                           'Scan Time Correction': TimeCorr, 'Q Normalisation': Qfact,
-                           'Total Correction Factor': TotalCorr}
+    print(auto_df)
+    auto_df.to_html('{0}snr_data.html'.format(outpath))
+    print(auto_df2)
+    auto_df2.to_html('{0}snr_results.html'.format(outpath))
+
+    auto_constants_data = {'Bandwidth': 38.4, 'Nominal Bandwidth': 30, 'BW Correction': np.round(BWcorr, 2),
+                           'Pixel Dimensions (mm)': np.round(pixel_dims, 2), 'Slice width (mm)': np.round(slice_thickness, 2),
+                           'Voxel Correction': np.round(PixelCorr, 2), 'Phase Encoding Steps': np.round(No_PEsteps, 2),
+                           'TR': TRep, 'NSA': no_averages,
+                           'Scan Time Correction': np.round(TimeCorr, 2), 'Q Normalisation': np.round(Qfact, 2),
+                           'Total Correction Factor': np.round(TotalCorr, 2)}
     auto_constants_df = pd.Series(auto_constants_data)
-    auto_constants_df.to_frame()
-    print(auto_constants_df)  # constants for normalised SNR calculation
+    auto_constants_df = auto_constants_df.to_frame()
 
-    results_df = auto_df.append(auto_df2, ignore_index=True)
-    results_df2 = results_df.append(auto_constants_df, ignore_index=True)
+    print(auto_constants_df)
+    auto_constants_df.to_html('{0}snr_normalisation_constants.html'.format(outpath))
 
-    results_df2.to_html(outpath + 'snr_results.html')
+    # CONCAT EVERYTHING
+    results_df = pd.concat([auto_df, auto_df2], join='outer')
+    results_df2 = pd.concat([results_df, auto_constants_df])
+    results_df2 = results_df2.fillna('-')
+    print(results_df2)
+    results_df2.to_html('{0}snr_results_all.html'.format(outpath))
     ##########################################
 
 
@@ -500,7 +546,19 @@ def calc_NSNR(pixels_space, st, N_PE, TR, NSA, SNR_background, Qfactor, BW=38.4,
     return NSNR, BWN, VC, STC, TCF
 
 
+def dicom_geo(dicomfile):
+    """ TAGS FOR SIEMENS DATA:
+    extract metadata for scan geometry from Series Description and Protcol Name """
 
+    # Series Description
+    series_description = dicomfile[0x0008, 0x103e]
+    series_description = series_description.value
+
+    # Protocol Name
+    protocol_name = dicomfile[0x0018, 0x1030]
+    protocol_name = protocol_name.value
+
+    return series_description, protocol_name
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 FROM python:3.7
 MAINTAINER Emma
 
-ADD SNR_measurement.py /
+ADD SNR_measurement.py measure_funcs.py/
 
 RUN apt-get update
 RUN apt-get install -y build-essential apt-utils
@@ -12,9 +12,10 @@ RUN apt-get update \
         python3-scipy\
         python3-matplotlib\
         python3-skimage\
-        python3-pandas
+        python3-pandas\
+        python3-regex
 
-RUN pip3 install numpy pydicom opencv-python scikit-image pandas
+RUN pip3 install numpy pydicom opencv-python scikit-image pandas regex
 
 CMD [ "python", "./SNR_measurement.py" ]
 
