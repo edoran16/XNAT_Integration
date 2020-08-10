@@ -1,12 +1,6 @@
 import sys
-import os
-from glob import glob
-import pydicom
 import numpy as np
 import cv2
-
-# function script
-import measure_funcs.py as mf
 
 # for snr_analysis
 from skimage import filters
@@ -14,104 +8,19 @@ from skimage.morphology import convex_hull_image, opening
 from skimage import exposure as ex
 from skimage.measure import label, regionprops
 import pandas as pd
-import re
 
 
-def main(argv):
+def testing_xtra_scripts(var):
+    print('The testing_xtra_script function works!')
+    x = var
+    y = 5
+    print(x, y)
+    z = np.mean([x, y])
+    print(z)
 
-    print('Running python script: ', sys.argv[0])
-    currentpath = os.getcwd()
+    output = z
 
-    # print('specifying input and output directories!')
-    input_dir = '/input'
-    output_dir = '/output'
-
-    print('Preparing to glob....')
-    pathname = input_dir + os.path.sep + '*.dcm'
-    dcm = glob(input_dir + os.path.sep + '*.dcm')
-
-    # Return a possibly-empty list of path names that match pathname,
-    # which must be a string containing a path specification.
-    if len(dcm) == 0:
-        print('DICOM file does not end in .dcm')
-        pathname = input_dir + os.path.sep + '*'
-        dcm = glob(input_dir + os.path.sep + '*')  # ['/input/scan_2_catalog.xml', '/input/image1']
-        for file in dcm:
-            print(file)
-            splitfile = file.split('/')
-            print(splitfile)
-            if splitfile[-3:] != 'xml':
-                dcm = file
-                print(dcm)
-            else:
-                print('Other file type apart from DICOM.')
-    else:
-        # *.dcm list bug fix
-        dcm = dcm[0]
-
-    print('Pathname = ', pathname)
-    print('dcm =', dcm)
-
-    fulldicomfile = pydicom.dcmread(dcm)
-    print('Scan DICOM file read in successfully.')
-
-    imdata = fulldicomfile.pixel_array  # raw image data
-    print('Pixel data obtained from DICOM file successfully.')
-
-    img = ((imdata / np.max(imdata)) * 255).astype('uint8')  # grayscale image
-    print('Pixel data converted to greyscale successfully.')
-
-    splitdcm = dcm.split(os.path.sep)
-    pngvar = output_dir + os.path.sep + splitdcm[-1]
-    outputpath = output_dir + os.path.sep
-
-    cv2.imwrite(pngvar + '.png', img)  # output png with time in string so that it is more easily identifiable
-    print('Greyscale image saved as png successfully.')
-
-    # TODO: determine this from the DICOM metadata.
-    sd, pn = dicom_geo(fulldicomfile)
-    print('Series description = ', sd)
-    print('Protocol name = ', pn)
-
-    # Only run this analysis if SNR is in the scan name
-    x = re.search('SNR', sd)
-    if x:
-        y = 1
-    try:
-        print(y)
-        print('This scan WAS acquired for the SNR test.')
-    except:
-        print('This scan WAS NOT acquired for the SNR test.')
-        exit(1)  # exit code
-    ########################
-
-    matchob_tra = re.search('TRA', sd)
-    if matchob_tra:
-        caseT = True  # transverse
-        caseS = False  # sagittal
-        caseC = False  # coronal
-        print('Scan geometry = Transverse')
-
-    matchob_sag = re.search('SAG', sd)
-    if matchob_sag:
-        caseT = False  # transverse
-        caseS = True  # sagittal
-        caseC = False  # coronal
-        print('Scan geometry = Sagittal')
-
-    matchob_cor = re.search('COR', sd)
-    if matchob_cor:
-        caseT = False  # transverse
-        caseS = False  # sagittal
-        caseC = True  # coronal
-        print('Scan geometry = Coronal')
-
-    test_output = mf.testing_xtra_scripts(6)  # TODO: remove this. just proof of concept for adding scripts to Dockerfile
-    print(test_output)
-
-    snr_analysis(fulldicomfile, imdata, img, outputpath, caseT, caseS, caseC)
-
-    print('Done.')
+    return output
 
 
 def snr_analysis(dcmfile, imdata, img, outpath, cT, cS, cC):
@@ -547,6 +456,7 @@ def calc_NSNR(pixels_space, st, N_PE, TR, NSA, SNR_background, Qfactor, BW=38.4,
 
 
 def dicom_geo(dicomfile):
+    # TODO: determine this from the DICOM metadata.
     """ TAGS FOR SIEMENS DATA:
     extract metadata for scan geometry from Series Description and Protcol Name """
 
@@ -559,15 +469,3 @@ def dicom_geo(dicomfile):
     protocol_name = protocol_name.value
 
     return series_description, protocol_name
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
-
-
-""" LABEL FOR DOCKERFILE
-
-LABEL org.nrg.commands="[{\"inputs\": [{\"command-line-flag\": \"-b\", \"name\": \"bids\", \"default-value\": false, \"false-value\": \"n\", \"required\": false, \"true-value\": \"y\", \"replacement-key\": \"[BIDS]\", \"type\": \"boolean\", \"description\": \"Create BIDS metadata file\"}, {\"replacement-key\": \"[OTHER_OPTIONS]\", \"required\": false, \"type\": \"string\", \"name\": \"other-options\", \"description\": \"Other command-line flags to pass to dicom_wikixnat\"}], \"name\": \"dicom_wiki_xnat\", \"command-line\": \"python ./dicom_wikixnat.py [BIDS] [OTHER_OPTIONS] -o /output /input\", \"outputs\": [{\"mount\": \"nifti-out\", \"required\": \"true\", \"name\": \"nifti\", \"description\": \"The nifti files\"}], \"image\": \"edoran16/dicom_wiki_xnat\", \"label\": \"dicom_wiki_xnat\", \"version\": \"1.5\", \"schema-version\": \"1.0\", \"xnat\": [{\"derived-inputs\": [{\"name\": \"scan-dicoms\", \"matcher\": \"@.label == 'DICOM'\", \"provides-files-for-command-mount\": \"dicom-in\", \"derived-from-wrapper-input\": \"scan\", \"type\": \"Resource\", \"description\": \"The dicom resource on the scan\"}], \"contexts\": [\"xnat:imageScanData\"], \"description\": \"Run dicom_wiki_xnat on a Scan\", \"label\": \"dicom_wiki_xnat\", \"output-handlers\": [{\"accepts-command-output\": \"nifti\", \"label\": \"NIFTI\", \"type\": \"Resource\", \"name\": \"nifti-resource\", \"as-a-child-of-wrapper-input\": \"scan\"}], \"external-inputs\": [{\"matcher\": \"'DICOM' in @.resources[*].label\", \"required\": true, \"type\": \"Scan\", \"name\": \"scan\", \"description\": \"Input scan\"}], \"name\": \"dicom_wiki_xnat-scan\"}], \"mounts\": [{\"writable\": \"false\", \"path\": \"/input\", \"name\": \"dicom-in\"}, {\"writable\": \"true\", \"path\": \"/output\", \"name\": \"nifti-out\"}], \"info-url\": \"https://github.com/edoran16/DockerTest\", \"type\": \"docker\", \"description\": \"Runs dicom_wiki_xnat\"}]"
-
-
-"""
